@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.Mail.Mime
     ( -- * Datatypes
       Boundary (..)
@@ -24,7 +25,9 @@ module Network.Mail.Mime
       -- * Utilities
     , addPart
     , addAttachment
+    , addInlineAttachment
     , addAttachments
+    , addInlineAttachments
     , addAttachmentBS
     , addAttachmentsBS
     , htmlPart
@@ -33,30 +36,33 @@ module Network.Mail.Mime
     , quotedPrintable
     ) where
 
-import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder.Char.Utf8
-import Blaze.ByteString.Builder
-import Data.Monoid
-import System.Random
-import Control.Arrow
-import System.Process
-import System.IO
-import System.Exit
-import System.FilePath (takeFileName)
-import qualified Data.ByteString.Base64 as Base64
-import Control.Monad ((<=<), foldM)
-import Control.Exception (throwIO, ErrorCall (ErrorCall))
-import Data.List (intersperse)
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
-import Data.ByteString.Char8 ()
-import Data.Bits ((.&.), shiftR)
-import Data.Char (isAscii)
-import Data.Word (Word8)
-import qualified Data.ByteString as S
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
+import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder.Char.Utf8
+import           Control.Arrow
+import           Control.Exception                  (ErrorCall (ErrorCall),
+                                                     throwIO)
+import           Control.Monad                      (foldM, (<=<))
+import           Data.Bits                          (shiftR, (.&.))
+import qualified Data.ByteString                    as S
+import qualified Data.ByteString.Base64             as Base64
+import           Data.ByteString.Char8              ()
+import qualified Data.ByteString.Lazy               as L
+import           Data.Char                          (isAscii)
+import           Data.Foldable                      (foldMap)
+import           Data.List                          (foldl', intersperse)
+import           Data.Maybe                         (isNothing)
+import           Data.Monoid
+import           Data.Text                          (Text)
+import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as TE
+import qualified Data.Text.Lazy                     as LT
+import qualified Data.Text.Lazy.Encoding            as LT
+import           Data.Word                          (Word8)
+import           System.Exit
+import           System.FilePath                    (takeFileName)
+import           System.IO
+import           System.Process
+import           System.Random
 
 -- | Generates a random sequence of alphanumerics of the given length.
 randomString :: RandomGen d => Int -> d -> (String, d)
@@ -82,10 +88,10 @@ instance Random Boundary where
 
 -- | An entire mail message.
 data Mail = Mail
-    { mailFrom :: Address
-    , mailTo   :: [Address]
-    , mailCc   :: [Address]
-    , mailBcc  :: [Address]
+    { mailFrom    :: Address
+    , mailTo      :: [Address]
+    , mailCc      :: [Address]
+    , mailBcc     :: [Address]
     -- | Other headers, excluding from, to, cc and bcc.
     , mailHeaders :: Headers
     -- | A list of different sets of alternatives. As a concrete example:
@@ -94,7 +100,7 @@ data Mail = Mail
     --
     -- Make sure when specifying alternatives to place the most preferred
     -- version last.
-    , mailParts :: [Alternatives]
+    , mailParts   :: [Alternatives]
     }
   deriving Show
 
@@ -126,22 +132,24 @@ type Alternatives = [Part]
 
 -- | A single part of a multipart message.
 data Part = Part
-    { partType :: Text -- ^ content type
+    { partType     :: Text -- ^ content type
     , partEncoding :: Encoding
     -- | The filename for this part, if it is to be sent with an attachemnt
     -- disposition.
     , partFilename :: Maybe Text
-    , partHeaders :: Headers
-    , partContent :: L.ByteString
+    , partHeaders  :: Headers
+    , partContent  :: L.ByteString
     }
   deriving (Eq, Show)
 
 type Headers = [(S.ByteString, Text)]
 type Pair = (Headers, Builder)
 
-partToPair :: Part -> Pair
+partToPair :: Part -> ([Pair],[Pair])
 partToPair (Part contentType encoding disposition headers content) =
-    (headers', builder)
+    if isNothing disposition
+    then ([(headers', builder)],[])
+    else ([],[(headers', builder)])
   where
     headers' =
         ((:) ("Content-Type", contentType))
@@ -194,18 +202,24 @@ showPairs mtype parts gen =
 -- | Render a 'Mail' with a given 'RandomGen' for producing boundaries.
 renderMail :: RandomGen g => g -> Mail -> (L.ByteString, g)
 renderMail g0 (Mail from to cc bcc headers parts) =
-    (toLazyByteString builder, g'')
+    (toLazyByteString builder, g''')
   where
     addressHeaders = map showAddressHeader [("From", [from]), ("To", to), ("Cc", cc), ("Bcc", bcc)]
-    pairs = map (map partToPair) parts
-    (pairs', g') = helper g0 $ map (showPairs "alternative") pairs
+    pairs :: [([Pair],[Pair])]
+    pairs = map (foldMap partToPair) parts
+    inlines :: [[Pair]]
+    attachments :: [Pair]
+    (inlines,attachments) = foldl' (\ (als,ats) (al,at) -> (als ++ [al],ats++at)) ([],[]) pairs
+    (inlinePairs, g') = helper g0 $ map (showPairs "alternative") inlines
+    inlinePair :: Pair
+    (inlinePair, g'' ) = showPairs "related" inlinePairs g'
     helper :: g -> [g -> (x, g)] -> ([x], g)
     helper g [] = ([], g)
     helper g (x:xs) =
         let (b, g_) = x g
             (bs, g__) = helper g_ xs
          in (b : bs, g__)
-    ((finalHeaders, finalBuilder), g'') = showPairs "mixed" pairs' g'
+    ((finalHeaders, finalBuilder), g''') = showPairs "mixed" (inlinePair : attachments) g''
     builder = mconcat
         [ mconcat addressHeaders
         , mconcat $ map showHeader headers
@@ -390,6 +404,18 @@ addAttachment ct fn mail = do
 addAttachments :: [(Text, FilePath)] -> Mail -> IO Mail
 addAttachments xs mail = foldM fun mail xs
   where fun m (c, f) = addAttachment c f m
+
+addInlineAttachment :: Text -> Text -> FilePath -> Mail -> IO Mail
+addInlineAttachment ct cid fp mail = do
+  content <- L.readFile $ fp
+  let part = Part ct Base64 Nothing headers content
+  return $ addPart [part] mail
+  where
+    headers = [("Content-ID","<" <> cid <> ">")]
+
+addInlineAttachments :: [(Text,Text,FilePath)] -> Mail -> IO Mail
+addInlineAttachments xs mail = foldM fun mail xs
+  where fun m (ct, cid, f) = addInlineAttachment ct cid f m
 
 -- | Add an attachment from a 'ByteString' and construct a 'Part'.
 --
