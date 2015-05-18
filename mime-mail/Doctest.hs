@@ -123,5 +123,32 @@ attachment = ("application/pdf","stuff.pdf")
 -- VGhpcyBpcyBub3QgcmVhbGx5IGEgcGRmLg==
 -- <BLANKLINE>
 -- --SlIk5BhKRw--
+-- >>> printMail (testMail [testPlainPart,testHtmlPart] [] [attachment])
+-- From: =?utf-8?Q?Ben_Kolera?= <ben.kolera@gmail.com>
+-- MIME-Version: 1.0
+-- Content-Type: multipart/mixed; boundary="7RqZgvAiW0"
+-- <BLANKLINE>
+-- --7RqZgvAiW0
+-- Content-Type: multipart/alternative; boundary="bGXfgLY1EQ"
+-- <BLANKLINE>
+-- --bGXfgLY1EQ
+-- Content-Type: text/plain; charset=utf-8
+-- Content-Transfer-Encoding: quoted-printable
+-- <BLANKLINE>
+-- This is a plain text part
+-- --bGXfgLY1EQ
+-- Content-Type: text/html; charset=utf-8
+-- Content-Transfer-Encoding: quoted-printable
+-- <BLANKLINE>
+-- <div>This is a html text part</div>
+-- --bGXfgLY1EQ--
+-- --7RqZgvAiW0
+-- Content-Type: application/pdf
+-- Content-Transfer-Encoding: base64
+-- Content-Disposition: attachment; filename=stuff.pdf
+-- <BLANKLINE>
+-- VGhpcyBpcyBub3QgcmVhbGx5IGEgcGRmLg==
+-- <BLANKLINE>
+-- --7RqZgvAiW0--
 main :: IO ()
 main = return ()
