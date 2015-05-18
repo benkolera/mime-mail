@@ -49,7 +49,7 @@ import           Data.ByteString.Char8              ()
 import qualified Data.ByteString.Lazy               as L
 import           Data.Char                          (isAscii)
 import           Data.Foldable                      (foldMap)
-import           Data.List                          (foldl', intersperse)
+import           Data.List                          (foldl', intersperse, null)
 import           Data.Maybe                         (isNothing)
 import           Data.Monoid
 import           Data.Text                          (Text)
@@ -210,7 +210,7 @@ renderMail g0 (Mail from to cc bcc headers parts) =
     inlines :: [[Pair]]
     attachments :: [Pair]
     (inlines,attachments) = foldl' (\ (als,ats) (al,at) -> (als ++ [al],ats++at)) ([],[]) pairs
-    (inlinePairs, g') = helper g0 $ map (showPairs "alternative") inlines
+    (inlinePairs, g') = helper g0 . map (showPairs "alternative") . filter (not . null) $ inlines
     inlinePair :: Pair
     (inlinePair, g'' ) = showPairs "related" inlinePairs g'
     helper :: g -> [g -> (x, g)] -> ([x], g)
