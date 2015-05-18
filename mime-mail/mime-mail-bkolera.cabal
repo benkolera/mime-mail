@@ -1,12 +1,12 @@
-Name:                mime-mail
+Name:                mime-mail-bkolera
 Version:             0.4.8.3
-Synopsis:            Compose MIME email messages.
-description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/mime-mail>.
-Homepage:            http://github.com/snoyberg/mime-mail
+Synopsis:            Compose MIME email messages. Patched by Ben Kolera for multipart-related support.
+description:         See https://github.com/snoyberg/mime-mail/issues/36 for the deets on why this patch is needed.
+Homepage:            http://github.com/benkolera/mime-mail
 License:             MIT
 License-file:        LICENSE
 Author:              Michael Snoyman <michael@snoyman.com>
-Maintainer:          Michael Snoyman <michael@snoyman.com>
+Maintainer:          Ben Kolera <ben.kolera@gmail.com>
 Category:            Email
 Build-type:          Simple
 extra-source-files:  README.md
@@ -42,4 +42,4 @@ test-suite tests
 
 source-repository head
   type:     git
-  location: git://github.com/snoyberg/mime-mail.git
+  location: git://github.com/benkolera/mime-mail.git
