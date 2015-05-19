@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Mail.Mime
+module Network.Mail.MimeBkolera
     ( -- * Datatypes
       Boundary (..)
     , Mail (..)
