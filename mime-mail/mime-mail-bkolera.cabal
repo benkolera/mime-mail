@@ -1,5 +1,5 @@
 Name:                mime-mail-bkolera
-Version:             0.5.0.0
+Version:             0.5.0.1
 Synopsis:            Compose MIME email messages. Patched by Ben Kolera for multipart-related support.
 description:         See https://github.com/snoyberg/mime-mail/issues/36 for the deets on why this patch is needed.
 Homepage:            http://github.com/benkolera/mime-mail

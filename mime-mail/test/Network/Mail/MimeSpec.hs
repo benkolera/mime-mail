@@ -1,34 +1,49 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Mail.MimeSpec where
 
-import Test.Hspec
-import Test.Hspec.QuickCheck
-import Network.Mail.Mime
+import           Prelude                    (error, replicate, show, (<=), (==))
+
+import           Control.Category           ((.))
+import           Control.Monad              (forM_)
+import           Data.Bool                  (Bool (..))
+import           Data.Foldable              (all)
+import           Data.Function              (($))
+import           Data.Functor               (fmap)
+import           Data.Monoid                ((<>))
+
 import qualified Data.ByteString.Lazy.Char8 as L8
-import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Monad (forM_)
-import Data.Text.Lazy.Encoding (encodeUtf8)
+import           Data.Text.Lazy.Encoding    (encodeUtf8)
+
+import           Test.Hspec
+import           Test.Hspec.QuickCheck
+
+import           Blaze.ByteString.Builder   (toLazyByteString)
+
+import           Network.Mail.Mime
 
 spec :: Spec
 spec = describe "Network.Mail.Mime" $ do
     describe "quotedPrintable" $ do
+
         it "doesn't generate lines longer than 76 characters" $ do
             let lbs = toLazyByteString
                     $ quotedPrintable True (L8.replicate 1000 'x')
             forM_ (lines' lbs) $ (\l -> L8.length l `shouldSatisfy` (<= 76))
+
         it "under 76 in presence of terminating space" $ do
             let lbs = toLazyByteString
-                    $ quotedPrintable True
-                    $ L8.pack
-                    $ foldr
-                        (\a b -> b ++ replicate 74 'x' ++ [a])
-                        ""
-                        (" ")
+                    . quotedPrintable True
+                    . L8.pack
+                    $ replicate 74 'x' <> " "
+
             forM_ (lines' lbs) $ (\l -> L8.length l `shouldSatisfy` (<= 76))
+
         prop "always under 76 characters, text" $ \s ->
             let orig = L8.pack s
                 gen = toLazyByteString $ quotedPrintable True orig
              in all (\l -> L8.length l <= 76) $ lines' gen
+
         prop "always under 76 characters, binary" $ \s ->
             let orig = L8.pack s
                 gen = toLazyByteString $ quotedPrintable True orig
@@ -57,10 +72,9 @@ spec = describe "Network.Mail.Mime" $ do
                     else error $ show $ lines' gen
 
 lines' :: L8.ByteString -> [L8.ByteString]
-lines' =
-    map stripCR . L8.lines
+lines' = fmap stripCR . L8.lines
   where
     stripCR bs
-        | L8.null bs = bs
-        | L8.last bs == '\r' = L8.init bs
-        | otherwise = bs
+        | L8.null bs          = bs
+        | L8.last bs == '\r'  = L8.init bs
+        | True                = bs

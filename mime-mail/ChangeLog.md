@@ -1,3 +1,11 @@
+## 0.5.0.1
+
+* Fix Foldable instance resolution in tests, got a little refactor happy
+
+## 0.4.8.3
+
+* ???
+
 ## 0.4.8.1
 
 * Bump blaze-builder upper bound [#39](https://github.com/snoyberg/mime-mail/pull/39)
